@@ -1,0 +1,362 @@
+---
+title: 'Linear regression: defense ~ .'
+subtitle: '2021--2022'
+author: 'fnaufel, romulor3'
+email: 'https://fnaufel.github.io/'
+date: '   (v. `r format(Sys.Date(), "%d/%m/%Y")`)'
+lang: 'en'
+
+output: 
+  # To install these output formats, run
+  #   install.packages("devtools")
+  #   devtools::install_github("fnaufel/fnaufelRmd")
+  fnaufelRmd::html_report:
+    number_sections: no
+  fnaufelRmd::pdf_report:
+    number_sections: no
+
+# LaTeX / pdf options
+#
+# For more options, see
+# https://pandoc.org/MANUAL.html#variables-for-latex
+documentclass: article
+classoption: '11pt'
+geometry: 'margin=1in'
+bibliography: []
+biblio-style: apalike
+link-citations: yes
+---
+
+```{r setup, include=FALSE}
+# The next command configures MANY things and loads quite a few packages.
+# 
+# If you want to see what's being done, execute 
+# 
+#   cat(
+#     system.file(
+#       "rmarkdown/resources/R/_common_report.R", 
+#       package = "fnaufelRmd"
+#     )
+#   )
+# 
+# to find out the location of the file. Then open the file.
+# 
+# If you want to change the configuration, copy the file, edit it, and
+# source it instead of the package file. 
+# 
+# Or simply write your commands here in this code chunk.
+
+source(
+  system.file(
+    "rmarkdown/resources/R/_common_report.R",
+    package = "fnaufelRmd"
+  )
+)
+
+# Summarytools options
+st_options(
+  lang = 'en',
+)
+
+
+library(janitor)
+```
+
+
+# Introduction
+
+???
+
+
+# Read the data
+
+## Per game
+
+```{r cache=TRUE}
+df_per_game <- read_csv(
+  './data/2022-12-27-per-player-per-game.csv'
+) %>% 
+  clean_names()
+```
+
+```{r}
+df_per_game %>% glimpse()
+```
+
+## Advanced
+
+```{r cache=TRUE}
+df_advanced <- read_csv(
+  './data/2022-12-27-per-player-advanced.csv'
+) %>% 
+  clean_names()
+```
+
+```{r}
+df_advanced %>% glimpse()
+```
+
+* Empty columns `x20` and `x25`:
+
+  ```{r}
+  df_advanced %>% 
+    count(x20, x25)
+  ```
+
+  Delete them:
+  
+  ```{r}
+  df_advanced <- df_advanced %>% 
+    select(-x20, -x25)
+  ```
+  
+  
+# Data dictionary
+
+## Per game
+
+- **Rk:** Rank.
+
+- **Player:** Player name.
+
+- **Pos:** Position.
+
+- **Age:** Player's age on February 1 of the season.
+
+- **Tm:** Team.
+
+- **G:** Games.
+
+- **GS:** Games Started.
+
+- **MP:** Minutes Played Per Game.
+
+- **FG:** Field Goals Per Game.
+
+- **FGA:** Field Goal Attempts Per Game.
+
+- **FG%:** Field Goal Percentage.
+
+- **3P:** 3-Point Field Goals Per Game.
+
+- **3PA:** 3-Point Field Goal Attempts Per Game.
+
+- **3P%:** 3-Point Field Goal Percentage.
+
+- **2P:** 2-Point Field Goals Per Game.
+
+- **2PA:** 2-Point Field Goal Attempts Per Game.
+
+- **2P%:** 2-Point Field Goal Percentage.
+
+- **eFG%:** Effective Field Goal Percentage. Adjusts for a 3-point field goal being worth one more point than a 2-point field goal.
+
+- **FT:** Free Throws Per Game.
+
+- **FTA:** Free Throw Attempts Per Game.
+
+- **FT%:** Free Throw Percentage.
+
+- **ORB:** Offensive Rebounds Per Game.
+
+- **DRB:** Defensive Rebounds Per Game.
+
+- **TRB:** Total Rebounds Per Game.
+
+- **AST:** Assists Per Game.
+
+- **STL:** Steals Per Game.
+
+- **BLK:** Blocks Per Game.
+
+- **TOV:** Turnovers Per Game.
+
+- **PF:** Personal Fouls Per Game.
+
+- **PTS:** Points Per Game.
+
+- **Player-additional:** Unique identifier.
+
+
+## Advanced
+
+- **Rk:** Rank.
+
+- **Player:** Player name.
+
+- **Pos:** Position.
+
+- **Age:** Player's age on February 1 of the season.
+
+- **Tm:** Team.
+
+- **G:** Games.
+
+- **MP:** Minutes Played.
+
+- **PER:** Player Efficiency Rating. A measure of per-minute production standardized such that the league average is 15.
+
+- **TS%:** True Shooting Percentage. A measure of shooting efficiency that takes into account 2-point field goals, 3-point field goals, and free throws.
+
+- **3PAr:** 3-Point Attempt Rate. Percentage of FG Attempts from 3-Point Range
+
+- **FTr:** Free Throw Attempt Rate. Number of FT Attempts Per FG Attempt
+
+- **ORB%:** Offensive Rebound Percentage. An estimate of the percentage of available offensive rebounds a player grabbed while they were on the floor.
+
+- **DRB%:** Defensive Rebound Percentage. An estimate of the percentage of available defensive rebounds a player grabbed while they were on the floor.
+
+- **TRB%:** Total Rebound Percentage. An estimate of the percentage of available rebounds a player grabbed while they were on the floor.
+
+- **AST%:** Assist Percentage. An estimate of the percentage of teammate field goals a player assisted while they were on the floor.
+
+- **STL%:** Steal Percentage. An estimate of the percentage of opponent possessions that end with a steal by the player while they were on the floor.
+
+- **BLK%:** Block Percentage. An estimate of the percentage of opponent two-point field goal attempts blocked by the player while they were on the floor.
+
+- **TOV%:** Turnover Percentage. An estimate of turnovers committed per 100 plays.
+
+- **USG%:** Usage Percentage. An estimate of the percentage of team plays used by a player while they were on the floor.
+
+- **OWS:** Offensive Win Shares. An estimate of the number of wins contributed by a player due to offense.
+
+- **DWS:** Defensive Win Shares. An estimate of the number of wins contributed by a player due to defense.
+
+- **WS:** Win Shares. An estimate of the number of wins contributed by a player.
+
+- **WS/48:** Win Shares Per 48 Minutes. An estimate of the number of wins contributed by a player per 48 minutes (league average is approximately.100)
+
+- **OBPM:** Offensive Box Plus/Minus. A box score estimate of the offensive points per 100 possessions a player contributed above a league-average player, translated to an average team.
+
+- **DBPM:** Defensive Box Plus/Minus. A box score estimate of the defensive points per 100 possessions a player contributed above a league-average player, translated to an average team.
+
+- **BPM:** Box Plus/Minus. A box score estimate of the points per 100 possessions a player contributed above a league-average player, translated to an average team.
+
+- **VORP:** Value over Replacement Player. A box score estimate of the points per 100 TEAM possessions that a player contributed above a replacement-level (-2.0) player, translated to an average team and prorated to an 82-game season. Multiply by 2.70 to convert to wins over replacement.
+
+- **Player-additional:** Unique identifier.
+
+
+# Cleaning the data
+
+## Per game
+
+* Delete `rk` column:
+
+    ```{r}
+    df_per_game <- 
+      df_per_game %>% 
+        select(-rk)
+    ```
+
+* Rename id column:
+
+    ```{r}
+    df_per_game <- 
+      df_per_game %>% 
+        rename(player_id = player_additional)
+    ```
+
+* Find players that appear more than once and keep only the row that has the totals:
+
+    ```{r}
+    dups <- df_per_game %>% 
+      count(player_id, sort = TRUE) %>% 
+      filter(n > 1)
+    ```
+    
+  ```{r}
+  dups
+  ```
+
+  ```{r}
+  df_per_game %>% 
+    filter(player_id %in% dups$player_id) %>% 
+    select(player_id, player, tm)
+  ```
+
+    ```{r}
+    df_per_game <- 
+      df_per_game %>% 
+        filter(
+          !(player_id %in% dups$player_id) |
+          tm == 'TOT'
+        )
+    ```
+
+* Rename all columns
+
+    ```{r}
+    original_names <- names(df_per_game)
+    new_names <- c(
+      'player',
+      'position',
+      'age',
+      'team',
+      'games',
+      'games_started',
+      'minutes_played',
+      'goals_scored',
+      'goal_attempts',
+      'goal_pct',
+      'goals_scored_3p',
+      'goal_attempts_3p',
+      'goal_pct_3p',
+      'goals_scored_2p',
+      'goal_attempts_2p',
+      'goal_pct_2p',
+      'goals_effective_pct',
+      'free_throws_scored',
+      'free_throw_attempts',
+      'free_throw_pct',
+      'rebounds_offense',
+      'rebounds_defense',
+      'rebounds_total',
+      'assists',
+      'steals',
+      'blocks',
+      'turnovers',
+      'fouls',
+      'points_scored',
+      'player_id'
+    )
+    
+    names(new_names) <- original_names
+    
+    paste(
+      names(new_names), 
+      new_names, 
+      sep = ' -> ', 
+      collapse = '\n'
+    ) %>% 
+      cat()
+    ```
+
+    ```{r}
+    df_per_game <- df_per_game %>% 
+      rename_with(
+        function(x) { new_names[x] }
+      )
+    ```
+
+  ```{r}
+  df_per_game
+  ```
+
+### Per game: summary
+
+```{r}
+df_per_game %>% 
+  dfSummary(silent = TRUE) %>% 
+  print(method = 'render')
+```
+
+### Per game: notes
+
+* Approximately $16\%$ of players played for two or more teams during the season.
+
+* On average, a player plays only $19$ minutes per game.
+
+* Columns that should contain percentages actually contain proportions.
+
+* All columns that contain proportions have some missing values. Fortunately, all of them will be discarded before we build the model, as they are derived --- therefore, perfectly correlated with other columns.
